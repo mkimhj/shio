@@ -49,6 +49,10 @@
 #include "flash.h"
 #include "main.h"
 
+#include "time_sync.h"
+#include "nrf_ppi.h"
+#include "nrf_timer.h"
+
 #define SECONDS_TO_RECORD 3
 
 accelGenericInterrupt_t accelInterrupt1 = {
@@ -65,6 +69,7 @@ accelGenericInterrupt_t accelInterrupt1 = {
 
 static uint8_t flashReadBuffer[FLASH_READ_BUFFER_SIZE] = {0};
 static int16_t* micData;
+int16_t test_buffer[PDM_BUFFER_LENGTH] = {0};
 
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
@@ -93,6 +98,35 @@ static void bsp_event_handler(bsp_event_t event)
 
   switch (event)
   {
+	case BSP_EVENT_KEY_3:
+		{
+			static bool m_send_sync_pkt = false;
+			
+			if (m_send_sync_pkt)
+			{
+				m_send_sync_pkt = false;
+				
+				bsp_board_leds_off();
+				
+				err_code = ts_tx_stop();
+				APP_ERROR_CHECK(err_code);
+				
+				NRF_LOG_INFO("Stopping sync beacon transmission!\r\n");
+			}
+			else
+			{
+				m_send_sync_pkt = true;
+				
+				bsp_board_leds_on();
+				
+				err_code = ts_tx_start(200);
+				APP_ERROR_CHECK(err_code);
+				
+				NRF_LOG_INFO("Starting sync beacon transmission!\r\n");
+			}
+		}
+		break;
+			
     case BSP_EVENT_SLEEP:
       sleep_mode_enter();
       break; // BSP_EVENT_SLEEP
@@ -143,6 +177,54 @@ static void logInit(void)
   NRF_LOG_DEFAULT_BACKENDS_INIT();
 }
 
+static void sync_timer_button_init(void)
+{
+    uint32_t       err_code;
+    uint8_t        rf_address[5] = {0xDE, 0xAD, 0xBE, 0xEF, 0x19};
+    ts_params_t    ts_params;
+    
+    // Debug pin: 
+    // nRF52-DK (PCA10040) Toggle P0.24 from sync timer to allow pin measurement
+    // nRF52840-DK (PCA10056) Toggle P1.14 from sync timer to allow pin measurement
+#if defined(BOARD_PCA10040)
+    nrf_gpiote_task_configure(3, NRF_GPIO_PIN_MAP(0, 24), NRF_GPIOTE_POLARITY_TOGGLE, NRF_GPIOTE_INITIAL_VALUE_LOW);
+    nrf_gpiote_task_enable(3);
+#elif defined(BOARD_PCA10056)
+    nrf_gpiote_task_configure(3, NRF_GPIO_PIN_MAP(1, 14), NRF_GPIOTE_POLARITY_TOGGLE, NRF_GPIOTE_INITIAL_VALUE_LOW);
+    nrf_gpiote_task_enable(3);
+#else
+#warning Debug pin not set
+#endif
+    
+    nrf_ppi_channel_endpoint_setup(
+        NRF_PPI_CHANNEL0, 
+        (uint32_t) nrf_timer_event_address_get(NRF_TIMER3, NRF_TIMER_EVENT_COMPARE4),
+        nrf_gpiote_task_addr_get(NRF_GPIOTE_TASKS_OUT_3));
+    nrf_ppi_channel_enable(NRF_PPI_CHANNEL0);
+    
+    ts_params.high_freq_timer[0] = NRF_TIMER3;
+    ts_params.high_freq_timer[1] = NRF_TIMER2;
+    ts_params.rtc             = NRF_RTC1;
+    ts_params.egu             = NRF_EGU3;
+    ts_params.egu_irq_type    = SWI3_EGU3_IRQn;
+    ts_params.ppi_chg         = 0;
+    ts_params.ppi_chns[0]     = 1;
+    ts_params.ppi_chns[1]     = 2;
+    ts_params.ppi_chns[2]     = 3;
+    ts_params.ppi_chns[3]     = 4;
+    ts_params.rf_chn          = 125; /* For testing purposes */
+    memcpy(ts_params.rf_addr, rf_address, sizeof(rf_address));
+    
+    err_code = ts_init(&ts_params);
+    APP_ERROR_CHECK(err_code);
+    
+    err_code = ts_enable();
+    APP_ERROR_CHECK(err_code);
+    
+    NRF_LOG_INFO("Started listening for beacons.\r\n");
+    NRF_LOG_INFO("Press Button 4 to start sending sync beacons\r\n");
+}
+
 static void powerInit(void)
 {
   ret_code_t err_code;
@@ -186,6 +268,7 @@ static void shioInit(void)
 
   powerInit();
   bleInit();
+  sync_timer_button_init();
   bleAdvertisingStart();
 
   NRF_LOG_RAW_INFO("[shio] booted\n");
@@ -207,6 +290,10 @@ static void processQueue(void)
         break;
       case EVENT_AUDIO_MIC_DATA_READY:
         micData = audioGetMicData();
+		// for (int i = 0; i < PDM_BUFFER_LENGTH; i++) {
+			// test_buffer[i] = (int16_t) i;
+		// }
+		// micData = test_buffer;
 
 #ifdef MIC_TO_BLE
         if (streamStarted) {
