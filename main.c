@@ -48,7 +48,7 @@
 #include "main.h"
 
 #define SECONDS_TO_RECORD 3
-#define MIC_TO_BLE
+// #define MIC_TO_BLE
 // #define MIC_TO_FLASH
 
 static uint8_t flashReadBuffer[FLASH_READ_BUFFER_SIZE] = {0};
@@ -130,10 +130,10 @@ static void buttons_leds_init(bool * p_erase_bonds)
   err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
   APP_ERROR_CHECK(err_code);
 
-  err_code = bsp_btn_ble_init(NULL, &startup_event);
-  APP_ERROR_CHECK(err_code);
+  // err_code = bsp_btn_ble_init(NULL, &startup_event);
+  // APP_ERROR_CHECK(err_code);
 
-  *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
+  // *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
 }
 
 static void logInit(void)
@@ -170,14 +170,14 @@ static void shioInit(void)
   gpioWrite(GPIO_1_PIN, 0); // booting
   eventQueueInit();
   buttons_leds_init(&erase_bonds);
-  flashInternalInit();
+  // flashInternalInit();
 
 #ifdef MIC_TO_FLASH
   flashInternalErase(FLASH_INTERNAL_BASE_ADDRESS, (SECONDS_TO_RECORD*100000) / 4000); // Erase 125 4kB pages
 #endif
 
-  audioInit();
-  spiInit();
+  // audioInit();
+  // spiInit();
   // accelInit();
   // accelGenericInterruptEnable(&accelInterrupt1);
   APP_ERROR_CHECK(nrf_drv_clock_init());
@@ -287,9 +287,46 @@ int main(void)
 {
   shioInit();
 
+  gpioOutputEnable(MIC_EN_PIN);
+  gpioOutputEnable(PDM_CLK_PIN);
+  gpioOutputEnable(PDM_DATA_PIN);
+  gpioOutputEnable(SPI_SCK_PIN);
+  gpioOutputEnable(SPI_MOSI_PIN);
+  gpioOutputEnable(SPI_MISO_PIN);
+  gpioOutputEnable(SPI_CS_PIN);
+  gpioOutputEnable(ACCEL_EN_PIN);
+  gpioOutputEnable(ACCEL_INT1_PIN);
+  gpioOutputEnable(ACCEL_INT2_PIN);
+  gpioOutputEnable(GPIO_1_PIN);
+  gpioOutputEnable(GPIO_2_PIN);
+  gpioOutputEnable(GPIO_3_PIN);
+  gpioOutputEnable(GPIO_4_PIN);
+  gpioOutputEnable(LED2_PIN);
+
+  gpioWrite(MIC_EN_PIN, 1);
+  gpioWrite(PDM_CLK_PIN, 1);
+  gpioWrite(PDM_DATA_PIN, 1);
+  gpioWrite(SPI_SCK_PIN, 1);
+  gpioWrite(SPI_MOSI_PIN, 1);
+  gpioWrite(SPI_MISO_PIN, 1);
+  gpioWrite(SPI_CS_PIN, 1);
+  gpioWrite(ACCEL_EN_PIN, 1);
+  gpioWrite(ACCEL_INT1_PIN, 1);
+  gpioWrite(ACCEL_INT2_PIN, 1);
+  gpioWrite(GPIO_1_PIN, 1);
+  gpioWrite(GPIO_2_PIN, 1);
+  gpioWrite(GPIO_3_PIN, 1);
+  gpioWrite(GPIO_4_PIN, 1);
+  gpioWrite(LED2_PIN, 1);
+
   for (;;)
   {
     idle();
-    processQueue();
+    if (bsp_button_is_pressed(0)) {
+      gpioWrite(LED2_PIN, 0);
+    } else {
+      gpioWrite(LED2_PIN, 1);
+    }
+    // processQueue();
   }
 }

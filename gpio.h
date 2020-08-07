@@ -24,6 +24,9 @@
 #define GPIO_3_PIN                       NRF_GPIO_PIN_MAP(0, 7)
 #define GPIO_4_PIN                       NRF_GPIO_PIN_MAP(0, 8)
 
+//
+#define LED2_PIN                         NRF_GPIO_PIN_MAP(0, 13)
+
 // QSPI
 // These are located in sdk_config.h. They're placed here just for reference.
 // #define NRFX_QSPI_PIN_SCK                NRF_GPIO_PIN_MAP(0, 19)
