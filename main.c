@@ -47,9 +47,60 @@
 #include "flash.h"
 #include "main.h"
 
-#include "time_sync.h"
-#include "nrf_ppi.h"
-#include "nrf_timer.h"
+
+/**** PWM related ****/
+#define PWM_PIN NRF_GPIO_PIN_MAP(1, 7)
+#include "nrf_drv_pwm.h"
+#include "nrf_drv_clock.h"
+static nrf_drv_pwm_t m_pwm0 = NRF_DRV_PWM_INSTANCE(0);
+nrf_pwm_values_individual_t seq_values[] = {{10, 0, 0, 0}};
+nrf_pwm_sequence_t const seq =
+{
+    .values.p_individual = seq_values,
+    .length          = NRF_PWM_VALUES_LENGTH(seq_values),
+    .repeats         = 0,
+    .end_delay       = 0
+};
+
+void pwm_init(){
+  nrf_drv_clock_lfclk_request(NULL);
+
+  // init PWM for 50kHz clock
+  // Start clock for accurate frequencies
+  NRF_CLOCK->TASKS_HFCLKSTART = 1; 
+  // Wait for clock to start
+  while(NRF_CLOCK->EVENTS_HFCLKSTARTED == 0);
+  nrf_drv_pwm_config_t const config0 =
+  {
+      .output_pins =
+      {
+          PWM_PIN, // channel 0
+          NRF_DRV_PWM_PIN_NOT_USED,             // channel 1
+          NRF_DRV_PWM_PIN_NOT_USED,             // channel 2
+          NRF_DRV_PWM_PIN_NOT_USED,             // channel 3
+      },
+      .irq_priority = APP_IRQ_PRIORITY_LOWEST,
+      .base_clock   = NRF_PWM_CLK_1MHz,
+      .count_mode   = NRF_PWM_MODE_UP,
+      .top_value    = 20,
+      .load_mode    = NRF_PWM_LOAD_INDIVIDUAL,
+      .step_mode    = NRF_PWM_STEP_AUTO
+  };
+
+  // Init PWM without error handler
+  APP_ERROR_CHECK(nrf_drv_pwm_init(&m_pwm0, &config0, NULL));
+
+  nrf_drv_pwm_simple_playback(&m_pwm0, &seq, 1, NRF_DRV_PWM_FLAG_LOOP);
+  // end
+}
+
+
+/**** end PWM related ****/
+
+#define START_PIN NRF_GPIO_PIN_MAP(1, 6)
+#define EN_IND_PIN 3
+#define TS_IND_PIN 2
+
 
 #define SECONDS_TO_RECORD 3
 #define MIC_TO_BLE
@@ -95,9 +146,9 @@ void sleep_mode_enter(void)
 static void bsp_event_handler(bsp_event_t event)
 {
   ret_code_t err_code;
-
+  static bool m_start_clock=false;
   switch (event)
-  {			
+  {
     case BSP_EVENT_SLEEP:
       sleep_mode_enter();
       break; // BSP_EVENT_SLEEP
@@ -120,7 +171,29 @@ static void bsp_event_handler(bsp_event_t event)
         }
       }
       break; // BSP_EVENT_KEY_0
+    case BSP_EVENT_KEY_3:
 
+      if (m_start_clock)
+      {
+          m_start_clock = false;
+
+          bsp_board_led_off(EN_IND_PIN);
+
+          nrf_gpio_pin_clear(START_PIN);
+
+          NRF_LOG_INFO("en stop\n");
+      }
+      else
+      {
+          m_start_clock = true;
+
+          bsp_board_led_on(EN_IND_PIN);
+
+          nrf_gpio_pin_set(START_PIN);
+
+          NRF_LOG_INFO("en start\n");
+      }
+      break;
     default:
       break;
   }
@@ -146,41 +219,6 @@ static void logInit(void)
   APP_ERROR_CHECK(err_code);
 
   NRF_LOG_DEFAULT_BACKENDS_INIT();
-}
-
-static void timeSyncInit(void)
-{
-    uint32_t       err_code;
-    uint8_t        rf_address[5] = {0xDE, 0xAD, 0xBE, 0xEF, 0x19};
-    ts_params_t    ts_params;
-    
-    nrf_gpiote_task_configure(3, NRF_GPIO_PIN_MAP(1, 14), NRF_GPIOTE_POLARITY_TOGGLE, NRF_GPIOTE_INITIAL_VALUE_LOW);
-    nrf_gpiote_task_enable(3);
-    
-    nrf_ppi_channel_endpoint_setup(
-        NRF_PPI_CHANNEL0, 
-        (uint32_t) nrf_timer_event_address_get(NRF_TIMER3, NRF_TIMER_EVENT_COMPARE4),
-        nrf_gpiote_task_addr_get(NRF_GPIOTE_TASKS_OUT_3));
-    nrf_ppi_channel_enable(NRF_PPI_CHANNEL0);
-    
-    ts_params.high_freq_timer[0] = NRF_TIMER3;
-    ts_params.high_freq_timer[1] = NRF_TIMER2;
-    ts_params.rtc             = NRF_RTC1;
-    ts_params.egu             = NRF_EGU3;
-    ts_params.egu_irq_type    = SWI3_EGU3_IRQn;
-    ts_params.ppi_chg         = 0;
-    ts_params.ppi_chns[0]     = 1;
-    ts_params.ppi_chns[1]     = 2;
-    ts_params.ppi_chns[2]     = 3;
-    ts_params.ppi_chns[3]     = 4;
-    ts_params.rf_chn          = 125; /* For testing purposes */
-    memcpy(ts_params.rf_addr, rf_address, sizeof(rf_address));
-    
-    err_code = ts_init(&ts_params);
-    APP_ERROR_CHECK(err_code);
-    
-    err_code = ts_enable();
-    APP_ERROR_CHECK(err_code);
 }
 
 static void powerInit(void)
@@ -220,11 +258,11 @@ static void shioInit(void)
   // accelInit();
   // accelGenericInterruptEnable(&accelInterrupt1);
   APP_ERROR_CHECK(nrf_drv_clock_init());
+  pwm_init();
   powerInit();
 
 #ifdef MIC_TO_BLE
   bleInit();
-  timeSyncInit();
   bleAdvertisingStart();
 #endif
 
