@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
       # If there's a trailing sample prepend it to the data
       if (trailingSample):
-        data.insert(0, trailingSample)
+        data=trailingSample+data
 
       for i in range (0, len(data), 2):
         if ((i+1) == len(data)):
