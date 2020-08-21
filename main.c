@@ -51,12 +51,28 @@
 #include "nrf_ppi.h"
 #include "nrf_timer.h"
 
-#define SECONDS_TO_RECORD 3
+
 #define MIC_TO_BLE
 // #define MIC_TO_FLASH
 
-static uint8_t flashReadBuffer[FLASH_READ_BUFFER_SIZE] = {0};
-static int16_t micData[PDM_DECIMATION_BUFFER_LENGTH];
+#ifdef MIC_TO_BLE
+  #define PREAMBLE_LENGTH 8
+  #define SEQUENCE_NUMBER_LENGTH 1
+  #define SEQUENCE_NUMBER_POSITION 8
+  #define TIMESTAMP_LENGTH 4
+  #define TIMESTAMP_POSITION 9
+  #define MIC_DATA_POSITION 13
+  #define DATA_BUFFER_LENGTH PREAMBLE_LENGTH + SEQUENCE_NUMBER_LENGTH + TIMESTAMP_LENGTH + PDM_DECIMATION_BUFFER_LENGTH
+#endif
+
+#ifdef MIC_TO_FLASH
+  #define SECONDS_TO_RECORD 3
+  static uint8_t flashReadBuffer[FLASH_READ_BUFFER_SIZE] = {0};
+#endif
+
+static uint8_t preamble[PREAMBLE_LENGTH] = {0x7F, 0xFF, 0x80, 0x00, 0x7F, 0xFF, 0x80, 0x00};
+static uint8_t dataBuffer[DATA_BUFFER_LENGTH] = {0x0};
+static uint8_t sequenceNumber = 0;
 static bool bleRetry = false;
 
 accelGenericInterrupt_t accelInterrupt1 = {
@@ -234,9 +250,7 @@ static void shioInit(void)
 
 static void processQueue(void)
 {
-#ifdef MIC_TO_BLE
   static bool streamStarted = false;
-#endif
 
   if (!eventQueueEmpty()) {
     switch(eventQueueFront()) {
@@ -248,13 +262,15 @@ static void processQueue(void)
         break;
 
       case EVENT_AUDIO_MIC_DATA_READY:
-        memcpy(micData, audioGetMicData(), sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH);
-        // NRF_LOG_RAW_INFO("%08d [main] mic data ready\n", systemTimeGetMs());
+        memcpy(dataBuffer, preamble, sizeof(preamble) * sizeof(preamble[0]));
+        dataBuffer[SEQUENCE_NUMBER_POSITION] = sequenceNumber++;
+        uint32_t timestamp = audioGetBufferReleasedTime();
+        memcpy(dataBuffer + TIMESTAMP_POSITION, &timestamp, sizeof(timestamp));
+        memcpy(dataBuffer + MIC_DATA_POSITION, audioGetMicData(), sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH);
 
-#ifdef MIC_TO_BLE
         if (streamStarted) {
-          if (bleBufferHasSpace(sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH) && !bleRetry) {
-            bleSendData((uint8_t *) micData, sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH);
+          if (bleBufferHasSpace(sizeof(dataBuffer) * sizeof(dataBuffer[0])) && !bleRetry) {
+            bleSendData((uint8_t *) dataBuffer, sizeof(dataBuffer) * sizeof(dataBuffer[0]));
           } else {
             if (!bleRetry) {
               bleRetry = true;
@@ -263,43 +279,16 @@ static void processQueue(void)
             }
           }
         }
-#endif
-
-#ifdef MIC_TO_FLASH
-        flashInternalWrite(
-          (flashInternalGetNextWriteAddress()),
-          (uint8_t*) micData,
-          (2*PDM_BUFFER_LENGTH));
-
-        if (flashInternalGetBytesWritten() > SECONDS_TO_RECORD*100000) {
-          uint32_t readAddress = FLASH_INTERNAL_BASE_ADDRESS;
-          audioDeInit();
-
-          // Read 512 bytes, 1000 times = 512000KB dump
-          for (int i = 0; i < 1000; i++) {
-            readAddress = flashInternalRead(readAddress, flashReadBuffer, FLASH_READ_BUFFER_SIZE);
-            for (int j = 0; j < 512; j+=2) {
-              NRF_LOG_RAW_INFO("%d\n", (int16_t) (flashReadBuffer[j+1] << 8 | flashReadBuffer[j]));
-            }
-          }
-
-          while(1) {};
-        }
-#endif
         break;
 
       case EVENT_BLE_DATA_STREAM_START:
-#ifdef MIC_TO_BLE
         streamStarted = true;
         audioStart();
-#endif
         NRF_LOG_RAW_INFO("%08d [ble] stream start\n", systemTimeGetMs());
         break;
 
       case EVENT_BLE_DATA_STREAM_STOP:
-#ifdef MIC_TO_BLE
         streamStarted = false;
-#endif
         NRF_LOG_RAW_INFO("%08d [ble] stream stop\n", systemTimeGetMs());
         break;
 
@@ -308,9 +297,9 @@ static void processQueue(void)
         break;
 
       case EVENT_BLE_SEND_DATA_DONE:
-        if (bleRetry && bleBufferHasSpace(sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH)) {
+        if (bleRetry && bleBufferHasSpace(sizeof(dataBuffer) * sizeof(dataBuffer[0]))) {
           bleRetry = false;
-          bleSendData((uint8_t *) micData, sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH);
+          bleSendData((uint8_t *) dataBuffer, sizeof(dataBuffer) * sizeof(dataBuffer[0]));
         }
         break;
 

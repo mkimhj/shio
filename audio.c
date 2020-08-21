@@ -22,11 +22,15 @@
 #include "event.h"
 #include "main.h"
 #include "audio.h"
+#include "nrf_ppi.h"
+#include "nrf_timer.h"
+#include "time_sync.h"
 
 int16_t pdmBuffer[2][PDM_BUFFER_LENGTH] = {0};
 int16_t releasedPdmBuffer[PDM_DECIMATION_BUFFER_LENGTH] = {0};
 static bool fftInputBufferReady = false;
 static int pdmBufferIndex = 0;
+static uint32_t bufferReleasedTime = 0;
 
 static void decimate(int16_t* outputBuffer, int16_t* inputBuffer, uint8_t decimationFactor)
 {
@@ -47,6 +51,7 @@ static void pdmEventHandler(nrfx_pdm_evt_t *event)
 
   if (event->buffer_released) {
     CRITICAL_REGION_ENTER();
+    bufferReleasedTime = ts_timestamp_get_ticks_u32(NRF_PPI_CHANNEL10);
     decimate(releasedPdmBuffer, event->buffer_released, PDM_DECIMATION_FACTOR);
     eventQueuePush(EVENT_AUDIO_MIC_DATA_READY);
     CRITICAL_REGION_EXIT();
@@ -64,6 +69,11 @@ static void pdmEventHandler(nrfx_pdm_evt_t *event)
 int16_t* audioGetMicData(void)
 {
   return releasedPdmBuffer;
+}
+
+uint32_t audioGetBufferReleasedTime(void)
+{
+  return bufferReleasedTime;
 }
 
 void audioInit(void)

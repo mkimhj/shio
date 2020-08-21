@@ -1,5 +1,3 @@
-#include "spi.h"
-
 #define FLASH_INTERNAL_BASE_ADDRESS 0x50000
 
 void flashExternalEraseAll(void);
