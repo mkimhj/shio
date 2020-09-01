@@ -88,7 +88,18 @@ void audioInit(void)
 void audioStart(void)
 {
   nrfx_err_t errorStatus;
-  nrfx_pdm_config_t pdmConfig = NRFX_PDM_DEFAULT_CONFIG(PDM_CLK_PIN, PDM_DATA_PIN);
+
+  nrfx_pdm_config_t pdmConfig = {
+    .mode               = (nrf_pdm_mode_t)NRFX_PDM_CONFIG_MODE,
+    .edge               = (nrf_pdm_edge_t)NRFX_PDM_CONFIG_EDGE,
+    .pin_clk            = PDM_CLK_PIN,
+    .pin_din            = PDM_DATA_PIN,
+    .clock_freq         = (nrf_pdm_freq_t)NRFX_PDM_CONFIG_CLOCK_FREQ,
+    .gain_l             = 0x3C,
+    .gain_r             = 0x3C,
+    .interrupt_priority = NRFX_PDM_CONFIG_IRQ_PRIORITY
+  };
+
   errorStatus = nrfx_pdm_init(&pdmConfig, (nrfx_pdm_event_handler_t) pdmEventHandler);
   ASSERT(errorStatus == NRFX_SUCCESS);
 
