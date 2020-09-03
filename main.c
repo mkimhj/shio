@@ -314,6 +314,10 @@ static void processQueue(void)
         }
         break;
 
+      case EVENT_AUDIO_OFFSET_COMPENSATE:
+        adjustOffset();
+        break;
+
       default:
         NRF_LOG_RAW_INFO("%08d [main] unhandled event:%d\n", systemTimeGetMs(), eventQueueFront());
         break;

@@ -23,15 +23,76 @@
 #include "main.h"
 #include "audio.h"
 
+#include "time_sync.h"
+
+#define COMPENSATE_SKEW_TICK_CONSTANT         320                                       // Tick skew interval that indicates a sample offset
+
+static int32_t getOffset(void);
+
 int16_t pdmBuffer[2][PDM_BUFFER_LENGTH] = {0};
 int16_t releasedPdmBuffer[PDM_DECIMATION_BUFFER_LENGTH] = {0};
 static bool fftInputBufferReady = false;
 static int pdmBufferIndex = 0;
+static compensate_data_s c_data;
+static volatile compensate_data_s * c_data_p;
+static volatile int32_t m_offset = 0;
+
+static compensate_data_s * getCompensateData(void)
+{
+    int32_t c_lower_bound   = TIME_SYNC_TIMER_MAX_VAL*((&c_data)->c_sample_skew - 1);
+    int32_t c_upper_bound   = TIME_SYNC_TIMER_MAX_VAL*((&c_data)->c_sample_skew + 1);
+
+    if (ts_is_master()) {
+        (&c_data)->c_offset = 0;
+    } else {
+        (&c_data)->c_offset = getOffset();
+    }
+
+    if ((&c_data)->c_offset > c_upper_bound) {
+        (&c_data)->c_sample_skew++;
+        (&c_data)->c_evt = EVENT_COMP_UNDER_SAMPLE;
+    } else if ((&c_data)->c_offset < c_lower_bound) {
+        (&c_data)->c_sample_skew--;
+        (&c_data)->c_evt = EVENT_COMP_OVER_SAMPLE;
+    } else {
+        (&c_data)->c_evt = EVENT_COMP_NONE;
+    }
+
+    return(&c_data);
+}
 
 static void decimate(int16_t* outputBuffer, int16_t* inputBuffer, uint8_t decimationFactor)
 {
+  int decimation_index = 0;
+
   for (int i = 0; i < PDM_DECIMATION_BUFFER_LENGTH; i++) {
-    outputBuffer[i] = inputBuffer[i*decimationFactor];
+    c_data_p = getCompensateData();
+
+    // Abort decimation and proceed to next mic sample
+    if (c_data_p->c_evt == EVENT_COMP_UNDER_SAMPLE && decimation_index > (PDM_BUFFER_LENGTH - 2 * decimationFactor - 1)) {
+      break;
+    }
+
+    // Drift compensate event handler
+    switch (c_data_p->c_evt) {
+      case EVENT_COMP_UNDER_SAMPLE:
+        decimation_index += (i == 0) ? 0 : decimationFactor * 2;
+        outputBuffer[i] = inputBuffer[decimation_index];
+        break;
+
+      case EVENT_COMP_OVER_SAMPLE:
+        decimation_index += (i == 0) ? 0 : decimationFactor / 2;
+        outputBuffer[i] = inputBuffer[decimation_index];
+        break;
+
+      case EVENT_COMP_NONE:
+        decimation_index += (i == 0) ? 0 : decimationFactor;
+        outputBuffer[i] = inputBuffer[decimation_index];
+        break;
+
+      default:
+        break;
+    }
   }
 }
 
@@ -61,6 +122,27 @@ static void pdmEventHandler(nrfx_pdm_evt_t *event)
   return;
 }
 
+void adjustOffset(void)
+{
+  uint32_t peer_timer = ts_get_peer_timer();
+  uint32_t local_timer = ts_get_local_timer();
+  uint32_t timer_offset = ts_get_timer_offset();
+
+  if (local_timer > peer_timer)
+  {
+      m_offset += (int)timer_offset;
+  }
+  else
+  {
+      m_offset -= (int)timer_offset;
+  }
+}
+
+static int32_t getOffset(void)
+{
+  return m_offset;
+}
+
 int16_t* audioGetMicData(void)
 {
   return releasedPdmBuffer;
@@ -71,6 +153,11 @@ void audioInit(void)
   gpioOutputEnable(MIC_EN_PIN);
   gpioWrite(MIC_EN_PIN, 1);
   delayMs(1);
+
+  // Initialize compensation variables
+  (&c_data)->c_evt            = EVENT_COMP_NONE;
+  (&c_data)->c_sample_skew    = 0;
+  (&c_data)->c_offset         = 0;
 
   NRF_LOG_RAW_INFO("%08d [audio] initialized\n", systemTimeGetMs());
 }

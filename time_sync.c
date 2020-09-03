@@ -54,6 +54,8 @@
 #include "nrf_sdh_soc.h"
 #include "nrf_sdm.h"
 
+#include "event.h"
+
 #define NRF_LOG_MODULE_NAME time_sync
 #define NRF_LOG_LEVEL 4
 #include "nrf_log.h"
@@ -117,6 +119,10 @@ static volatile bool m_timer_update_in_progress = false;
 
 static volatile uint32_t m_master_counter = 0;
 static volatile uint32_t m_rcv_count      = 0;
+
+static uint32_t peer_timer;
+static uint32_t local_timer;
+static uint32_t timer_offset;
 
 static volatile sync_pkt_t * mp_curr_adj_pkt;
 
@@ -546,10 +552,6 @@ void SWI3_EGU3_IRQHandler(void)
 
 static inline bool sync_timer_offset_compensate(sync_pkt_t * p_pkt)
 {
-    uint32_t peer_timer;
-    uint32_t local_timer;
-    uint32_t timer_offset;
-
     if (m_timer_update_in_progress)
     {
         return false;
@@ -593,6 +595,7 @@ static inline bool sync_timer_offset_compensate(sync_pkt_t * p_pkt)
 
     m_timer_update_in_progress = true;
     mp_curr_adj_pkt            = p_pkt;
+    eventQueuePush(EVENT_AUDIO_OFFSET_COMPENSATE);
 
     ppi_sync_timer_adjust_enable();
 
@@ -744,9 +747,9 @@ static void timers_capture(uint32_t * p_sync_timer_val, uint32_t * p_count_timer
 
     ppi_counter_timer_capture_disable(ppi_chn);
 
-    *p_sync_timer_val  = m_params.high_freq_timer[0]->CC[3];
-    *p_count_timer_val = (m_params.high_freq_timer[1]->CC[0]);
-    *p_peer_counter    = peer_counter;
+    *p_sync_timer_val  = m_params.high_freq_timer[0]->CC[3];        // Local sync timer ticks
+    *p_count_timer_val = (m_params.high_freq_timer[1]->CC[0]);      // Local timer overflows
+    *p_peer_counter    = peer_counter;                              // Peer timer overflows
 
     nrf_atomic_flag_clear(&m_timestamp_capture_flag);
 }
@@ -875,6 +878,38 @@ uint32_t ts_tx_stop()
     return NRF_SUCCESS;
 }
 
+bool ts_is_master(void)
+{
+    return m_send_sync_pkt;
+}
+
+void ts_timestamp_debug(uint8_t ppi_chn)
+{
+    uint32_t sync_timer_val;
+    uint32_t count_timer_val;
+    uint32_t peer_count;
+    uint32_t timestamp;
+
+    timers_capture(&sync_timer_val, &count_timer_val, &peer_count, ppi_chn);
+
+    NRF_LOG_RAW_INFO("[audio] sync_timer_val = %u, count_timer_val = %u, peer_count = %u\n", sync_timer_val, count_timer_val, peer_count);
+}
+
+uint32_t ts_get_peer_timer(void)
+{
+    return peer_timer;
+}
+
+uint32_t ts_get_local_timer(void)
+{
+    return local_timer;
+}
+
+uint32_t ts_get_timer_offset(void)
+{
+    return timer_offset;
+}
+
 uint32_t ts_timestamp_get_ticks_u32(uint8_t ppi_chn)
 {
     uint32_t sync_timer_val;
@@ -891,7 +926,7 @@ uint64_t ts_timestamp_get_ticks_u64(uint8_t ppi_chn)
     uint32_t sync_timer_val;
     uint32_t count_timer_val;
     uint64_t timestamp;
-    uint32_t  peer_count;
+    uint32_t peer_count;
 
     timers_capture(&sync_timer_val, &count_timer_val, &peer_count, ppi_chn);
 
