@@ -217,8 +217,8 @@ static void shioInit(void)
 
   audioInit();
   spiInit();
-  // accelInit();
-  // accelGenericInterruptEnable(&accelInterrupt1);
+  accelInit();
+  accelGenericInterruptEnable(&accelInterrupt1);
   APP_ERROR_CHECK(nrf_drv_clock_init());
   powerInit();
 

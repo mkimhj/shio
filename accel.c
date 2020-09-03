@@ -136,6 +136,6 @@ void accelInit(void)
 
     NRF_LOG_RAW_INFO("[accel] initialized\n");
   } else {
-    NRF_LOG_RAW_INFO("[accel] error initializing\n");
+    NRF_LOG_RAW_INFO("[accel] error initializing, expected:%02x actual:%02x\n", CHIP_ID, version);
   }
 }
