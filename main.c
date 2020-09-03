@@ -322,6 +322,9 @@ static void processQueue(void)
       case EVENT_TIME_SYNC_SLAVE_ENABLE:
         NRF_LOG_RAW_INFO("%08d [main] time sync slave enabled\n", systemTimeGetMs());
         ts_tx_stop();
+        
+      case EVENT_AUDIO_REFRESH_OFFSET:
+        audioRefreshOffset();
         break;
 
       default:
