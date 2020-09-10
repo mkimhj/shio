@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <nrfx.h>
+#include <math.h>
 
 #include "app_util_platform.h"
 #include "nordic_common.h"
@@ -25,7 +26,11 @@
 
 #include "time_sync.h"
 
-#define COMPENSATE_SKEW_TICK_CONSTANT         320                                       // Tick skew interval that indicates a sample offset
+#define SAMPLING_RATE   (50000 / PDM_DECIMATION_FACTOR)
+#define SINE_FREQUENCY   100
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
 
 static int32_t getOffset(void);
 
@@ -36,6 +41,7 @@ static int pdmBufferIndex = 0;
 static compensate_data_s c_data;
 static volatile compensate_data_s * c_data_p;
 static volatile int32_t m_offset = 0;
+static int sine_index = 0;
 
 static compensate_data_s * getCompensateData(void)
 {
@@ -77,23 +83,52 @@ static void decimate(int16_t* outputBuffer, int16_t* inputBuffer, uint8_t decima
     switch (c_data_p->c_evt) {
       case EVENT_COMP_UNDER_SAMPLE:
         decimation_index += (i == 0) ? 0 : decimationFactor * 2;
-        outputBuffer[i] = inputBuffer[decimation_index];
         break;
 
       case EVENT_COMP_OVER_SAMPLE:
         decimation_index += (i == 0) ? 0 : decimationFactor / 2;
-        outputBuffer[i] = inputBuffer[decimation_index];
         break;
 
       case EVENT_COMP_NONE:
         decimation_index += (i == 0) ? 0 : decimationFactor;
-        outputBuffer[i] = inputBuffer[decimation_index];
         break;
 
       default:
         break;
     }
+
+    outputBuffer[i] = inputBuffer[decimation_index];
   }
+}
+
+static void sine_generator(int16_t* outputBuffer)
+{
+  for (int i = 0; i < PDM_DECIMATION_BUFFER_LENGTH; i++) {
+    c_data_p = getCompensateData();
+
+    // Drift compensate event handler
+    switch (c_data_p->c_evt) {
+      case EVENT_COMP_UNDER_SAMPLE:
+        sine_index += (i == 0) ? 0 : 2;
+        break;
+
+      case EVENT_COMP_OVER_SAMPLE:
+        sine_index += (i == 0) ? 0 : 0;
+        break;
+
+      case EVENT_COMP_NONE:
+        sine_index += (i == 0) ? 0 : 1;
+        break;
+
+      default:
+        break;
+    }
+
+    // NRF_LOG_RAW_INFO("[audio] sine_index = %i\n", sine_index);
+    outputBuffer[i] = (int)sin(2 * M_PI * SINE_FREQUENCY * sine_index / SAMPLING_RATE);
+  }
+
+  sine_index = sine_index % (int)2*M_PI*SINE_FREQUENCY/SAMPLING_RATE;
 }
 
 static void pdmEventHandler(nrfx_pdm_evt_t *event)
@@ -108,7 +143,7 @@ static void pdmEventHandler(nrfx_pdm_evt_t *event)
 
   if (event->buffer_released) {
     CRITICAL_REGION_ENTER();
-    decimate(releasedPdmBuffer, event->buffer_released, PDM_DECIMATION_FACTOR);
+    sine_generator(releasedPdmBuffer);
     eventQueuePush(EVENT_AUDIO_MIC_DATA_READY);
     CRITICAL_REGION_EXIT();
   }
