@@ -620,7 +620,7 @@
 
 // <o> CLI_MAX_CMD_LEN - Command max length.
 #ifndef CLI_MAX_CMD_LEN
-#define CLI_MAX_CMD_LEN 21
+#define CLI_MAX_CMD_LEN 100
 #endif
 
 // <q> CLI_RTT_ENABLE  - Enable CLI RTT backend.
@@ -8360,7 +8360,7 @@
 
 // <o> NRF_CLI_CMD_BUFF_SIZE - Maximum buffer size for a single command.
 #ifndef NRF_CLI_CMD_BUFF_SIZE
-#define NRF_CLI_CMD_BUFF_SIZE 128*2
+#define NRF_CLI_CMD_BUFF_SIZE 512
 #endif
 
 // <q> NRF_CLI_ECHO_STATUS  - CLI echo status. If set, echo is ON.
@@ -8386,7 +8386,7 @@
 
 // <o> NRF_CLI_PRINTF_BUFF_SIZE - Maximum print buffer size.
 #ifndef NRF_CLI_PRINTF_BUFF_SIZE
-#define NRF_CLI_PRINTF_BUFF_SIZE 23*2
+#define NRF_CLI_PRINTF_BUFF_SIZE 23*4
 #endif
 
 // <e> NRF_CLI_HISTORY_ENABLED - Enable CLI history mode.
@@ -8543,7 +8543,7 @@
 // <i> longer one will be fragmented.
 
 #ifndef NRF_LOG_BACKEND_UART_TEMP_BUFFER_SIZE
-#define NRF_LOG_BACKEND_UART_TEMP_BUFFER_SIZE 128
+#define NRF_LOG_BACKEND_UART_TEMP_BUFFER_SIZE 512
 #endif
 
 // </e>

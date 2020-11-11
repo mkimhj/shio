@@ -303,6 +303,10 @@ static void processQueue(void)
         }
         break;
 
+      case EVENT_BLE_DISCONNECTED:
+        NVIC_SystemReset();
+        break;
+
       default:
         NRF_LOG_RAW_INFO("%08d [main] unhandled event:%d\n", systemTimeGetMs(), eventQueueFront());
         break;

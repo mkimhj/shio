@@ -1881,6 +1881,11 @@ static void cmd_scratchpad(nrf_cli_t const * p_cli, size_t argc, char ** argv)
   mainScratchpad();
 }
 
+static void cmd_reset(nrf_cli_t const * p_cli, size_t argc, char ** argv)
+{
+  NVIC_SystemReset();
+}
+
 static void cmd_ts_off(nrf_cli_t const * p_cli, size_t argc, char ** argv)
 {
     if (argc != 1)
@@ -2135,6 +2140,7 @@ NRF_CLI_CMD_REGISTER(pair,
                      cmd_device_pair);
 NRF_CLI_CMD_REGISTER(device_name, NULL, "<name> Set device name.", cmd_device_name_set);
 NRF_CLI_CMD_REGISTER(scratchpad, NULL, "scratchpad", cmd_scratchpad);
+NRF_CLI_CMD_REGISTER(reset, NULL, "reset", cmd_reset);
 NRF_CLI_CMD_REGISTER(advertise, &m_sub_advertise, "Turn advertising <on/off>.", cmd_advertise);
 NRF_CLI_CMD_REGISTER(scan, &m_sub_scan, "Scan options", cmd_scan);
 NRF_CLI_CMD_REGISTER(ts, &m_sub_ts, "Time Sync <on/off>", cmd_time_sync);

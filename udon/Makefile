@@ -100,6 +100,7 @@ SRC_FILES += \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_timer.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_twi.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_twim.c \
+	$(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_pwm.c \
 	$(SDK_ROOT)/components/libraries/crypto/nrf_crypto_aead.c \
   $(SDK_ROOT)/components/libraries/crypto/nrf_crypto_aes.c \
   $(SDK_ROOT)/components/libraries/crypto/nrf_crypto_aes_shared.c \
@@ -171,6 +172,7 @@ SRC_FILES += \
   $(SDK_ROOT)/components/nfc/ndef/parser/record/nfc_ndef_record_parser.c \
   $(SDK_ROOT)/components/nfc/platform/nfc_platform.c \
   $(SDK_ROOT)/components/nfc/t2t_parser/nfc_t2t_parser.c \
+
 
 
 

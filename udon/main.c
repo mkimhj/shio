@@ -68,7 +68,7 @@ void pwm_init(){
 
   // init PWM for 50kHz clock
   // Start clock for accurate frequencies
-  NRF_CLOCK->TASKS_HFCLKSTART = 1; 
+  NRF_CLOCK->TASKS_HFCLKSTART = 1;
   // Wait for clock to start
   while(NRF_CLOCK->EVENTS_HFCLKSTARTED == 0);
   nrf_drv_pwm_config_t const config0 =
@@ -121,7 +121,7 @@ void pwm_init(){
 
 APP_TIMER_DEF(m_blink_ble);
 APP_TIMER_DEF(m_blink_cdc);
-NRF_CLI_UART_DEF(m_cli_uart_transport, 0, 64, 16);
+NRF_CLI_UART_DEF(m_cli_uart_transport, 0, 256, 256);
 NRF_CLI_DEF(m_cli_uart, "udon] ", &m_cli_uart_transport.transport, '\r', CLI_LOG_QUEUE_SIZE);
 BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                                   /**< BLE NUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);                                                           /**< GATT module instance. */
