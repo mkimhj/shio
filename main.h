@@ -37,6 +37,8 @@
 #define PDM_DECIMATION_FACTOR           (1)
 #define PDM_DECIMATION_BUFFER_LENGTH    (PDM_BUFFER_LENGTH / PDM_DECIMATION_FACTOR)
 
+#define USER_BUTTON 0
+
 // Stack
 #define DEAD_BEEF                       0xDEADBEEF                              /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 void sleep_mode_enter(void);

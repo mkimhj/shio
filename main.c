@@ -92,12 +92,22 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
   app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
-void sleep_mode_enter(void)
+void powerEnterSleepMode(void)
 {
   ret_code_t err_code;
 
+  NRF_LOG_RAW_INFO("%08d [power] powering off...\n", systemTimeGetMs());
+
   err_code = bsp_indication_set(BSP_INDICATE_IDLE);
   APP_ERROR_CHECK(err_code);
+
+  // Drive enable signals low before shutting down
+  gpioOutputEnable(MIC_EN_PIN);
+  gpioWrite(MIC_EN_PIN, 0);
+  gpioOutputEnable(ACCEL_EN_PIN);
+  gpioWrite(MIC_EN_PIN, 0);
+  gpioOutputEnable(FLASH_EN_PIN);
+  gpioWrite(MIC_EN_PIN, 0);
 
   // Prepare wakeup buttons.
   err_code = bsp_btn_ble_sleep_mode_prepare();
@@ -115,45 +125,31 @@ static void bsp_event_handler(bsp_event_t event)
   switch (event)
   {
     case BSP_EVENT_SLEEP:
-      sleep_mode_enter();
-      break; // BSP_EVENT_SLEEP
+      powerEnterSleepMode();
+      break;
 
     case BSP_EVENT_DISCONNECT:
       err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-      if (err_code != NRF_ERROR_INVALID_STATE)
-      {
-        APP_ERROR_CHECK(err_code);
-      }
-      break; // BSP_EVENT_DISCONNECT
+      if (err_code != NRF_ERROR_INVALID_STATE) { APP_ERROR_CHECK(err_code); }
+      break;
 
-    case BSP_EVENT_WHITELIST_OFF:
-      if (m_conn_handle == BLE_CONN_HANDLE_INVALID)
-      {
-        err_code = ble_advertising_restart_without_whitelist(&m_advertising);
-        if (err_code != NRF_ERROR_INVALID_STATE)
-        {
-          APP_ERROR_CHECK(err_code);
-        }
-      }
-      break; // BSP_EVENT_KEY_0
+    case BSP_EVENT_KEY_0:
+      break;
 
     default:
       break;
   }
 }
 
-static void buttons_leds_init(bool * p_erase_bonds)
+static void buttons_leds_init(void)
 {
   ret_code_t err_code;
-  bsp_event_t startup_event;
 
   err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
   APP_ERROR_CHECK(err_code);
 
-  err_code = bsp_btn_ble_init(NULL, &startup_event);
-  APP_ERROR_CHECK(err_code);
-
-  *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
+  // Configure power off
+  bsp_event_to_button_action_assign(USER_BUTTON, BSP_BUTTON_ACTION_RELEASE, BSP_EVENT_SLEEP);
 }
 
 static void logInit(void)
@@ -204,6 +200,7 @@ static void powerInit(void)
   ret_code_t err_code;
   err_code = nrf_pwr_mgmt_init();
   APP_ERROR_CHECK(err_code);
+  sd_power_dcdc_mode_set(true);
 }
 
 static void idle(void)
@@ -215,8 +212,6 @@ static void idle(void)
 
 static void shioInit(void)
 {
-  bool erase_bonds;
-
   logInit();
   NRF_LOG_RAW_INFO("%08d [shio] booting...\n", systemTimeGetMs());
   timersInit();
@@ -224,12 +219,7 @@ static void shioInit(void)
   gpioOutputEnable(GPIO_1_PIN);
   gpioWrite(GPIO_1_PIN, 0); // booting
   eventQueueInit();
-  buttons_leds_init(&erase_bonds);
-
-#ifdef MIC_TO_FLASH
-  flashInternalInit();
-  flashInternalErase(FLASH_INTERNAL_BASE_ADDRESS, (SECONDS_TO_RECORD*100000) / 4000); // Erase 125 4kB pages
-#endif
+  buttons_leds_init();
 
   audioInit();
   spiInit();
@@ -238,11 +228,9 @@ static void shioInit(void)
   APP_ERROR_CHECK(nrf_drv_clock_init());
   powerInit();
 
-#ifdef MIC_TO_BLE
   bleInit();
   timeSyncInit();
   bleAdvertisingStart();
-#endif
 
   gpioWrite(GPIO_1_PIN, 1); // finished booting
   NRF_LOG_RAW_INFO("%08d [shio] booted\n", systemTimeGetMs());
@@ -290,6 +278,7 @@ static void processQueue(void)
       case EVENT_BLE_DATA_STREAM_STOP:
         streamStarted = false;
         NRF_LOG_RAW_INFO("%08d [ble] stream stop\n", systemTimeGetMs());
+        NVIC_SystemReset();
         break;
 
       case EVENT_BLE_RADIO_START:
@@ -301,6 +290,10 @@ static void processQueue(void)
           bleRetry = false;
           bleSendData((uint8_t *) dataBuffer, sizeof(dataBuffer) * sizeof(dataBuffer[0]));
         }
+        break;
+
+      case EVENT_BLE_IDLE:
+        powerEnterSleepMode();
         break;
 
       case EVENT_BLE_DISCONNECTED:

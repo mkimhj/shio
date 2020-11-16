@@ -61,25 +61,7 @@ static ble_uuid_t m_adv_uuids[] =                                               
 static uint8_t ringBuffer[RING_BUFFER_SIZE] = {0};
 static uint16_t ringBufferHead = 0;
 static uint16_t ringBufferTail = 0;
-
-static bool bufferBoundaryChecker(uint16_t node, uint16_t boundary, int length)
-{
-  bool boundaryOk = true;
-  bool willWrap = (((node + length) / RING_BUFFER_SIZE) > 0);
-  uint16_t shiftedNode = ((node + length) % RING_BUFFER_SIZE);
-
-  if (willWrap) {
-    if (node <= boundary) { boundaryOk = false; }
-    else if (shiftedNode >= boundary) { boundaryOk = false; }
-  } else {
-    if ((node < boundary) && (shiftedNode >= boundary)) { boundaryOk = false; }
-  }
-
-  return boundaryOk;
-}
-
-#define bufferWillUnderflow(length) !bufferBoundaryChecker(ringBufferHead, ringBufferTail, length)
-#define bufferWillOverflow(length)  !bufferBoundaryChecker(ringBufferTail, ringBufferHead, length)
+static int ringBufferBytesUsed = 0;
 
 static void send(void);
 
@@ -290,14 +272,14 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
   switch (ble_adv_evt)
   {
     case BLE_ADV_EVT_FAST:
-      NRF_LOG_RAW_INFO("%08d [ble] fast advertising\n", systemTimeGetMs());
+      NRF_LOG_RAW_INFO("%08d [ble] advertising\n", systemTimeGetMs());
       err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
       APP_ERROR_CHECK(err_code);
       break;
 
     case BLE_ADV_EVT_IDLE:
-      NRF_LOG_INFO("BLE_ADV_EVT_IDLE...");
-      sleep_mode_enter();
+      NRF_LOG_RAW_INFO("%08d [ble] idle\n", systemTimeGetMs());
+      eventQueuePush(EVENT_BLE_IDLE);
       // Option to restart advertising
       // err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
       // APP_ERROR_CHECK(err_code);
@@ -534,10 +516,12 @@ void bleInit(void)
 
 static void send(void)
 {
+  static bool sending = false;
   int length = maxAttMtuBytes;
 
-  while(transmitDone) {
-    if (bufferWillUnderflow(length)) { break; }
+  while(transmitDone && (sending == false)) {
+    sending = true;
+    if (ringBufferBytesUsed <= length) { break; }
 
     for (int i = 0; i < length; i++) {
       bleCusPacket[i] = ringBuffer[(ringBufferHead + i) % RING_BUFFER_SIZE];
@@ -546,23 +530,26 @@ static void send(void)
     transmitDone = ble_cus_transmit(&m_cus, bleCusPacket, length);
 
     if (transmitDone) {
-      // Push head forward
       ringBufferHead = (ringBufferHead + length) % RING_BUFFER_SIZE;
+      ringBufferBytesUsed -= length;
     }
   }
+
+  sending = false;
 }
 
-void bleSendData(uint8_t * data, uint32_t length)
+void bleSendData(uint8_t * data, int length)
 {
   for (int i = 0; i < length; i++) {
     ringBuffer[(ringBufferTail + i) % RING_BUFFER_SIZE] = data[i];
   }
 
   ringBufferTail = (ringBufferTail + length) % RING_BUFFER_SIZE;
+  ringBufferBytesUsed += length;
   send();
 }
 
 bool bleBufferHasSpace(uint16_t length)
 {
-  return (bufferWillOverflow(length) == false);
+  return ((ringBufferBytesUsed + length) < RING_BUFFER_SIZE);
 }
