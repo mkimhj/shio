@@ -56,12 +56,12 @@
 // #define MIC_TO_FLASH
 
 #ifdef MIC_TO_BLE
-  #define PREAMBLE_LENGTH 8
+  #define PREAMBLE_LENGTH 7
+  #define SEQUENCE_NUMBER_POSITION PREAMBLE_LENGTH
   #define SEQUENCE_NUMBER_LENGTH 1
-  #define SEQUENCE_NUMBER_POSITION 8
+  #define TIMESTAMP_POSITION (SEQUENCE_NUMBER_POSITION + SEQUENCE_NUMBER_LENGTH)
   #define TIMESTAMP_LENGTH 4
-  #define TIMESTAMP_POSITION 9
-  #define MIC_DATA_POSITION 13
+  #define MIC_DATA_POSITION (TIMESTAMP_POSITION + TIMESTAMP_LENGTH)
   #define DATA_BUFFER_LENGTH PREAMBLE_LENGTH + SEQUENCE_NUMBER_LENGTH + TIMESTAMP_LENGTH + 2*PDM_DECIMATION_BUFFER_LENGTH
 #endif
 
@@ -70,7 +70,7 @@
   static uint8_t flashReadBuffer[FLASH_READ_BUFFER_SIZE] = {0};
 #endif
 
-static uint8_t preamble[PREAMBLE_LENGTH] = {0x7F, 0xFF, 0x80, 0x00, 0x7F, 0xFF, 0x80, 0x00};
+static uint8_t preamble[PREAMBLE_LENGTH] = {0x7F, 0xFF, 0x80, 0x00, 0x7F, 0xFF, 0x80};
 static uint8_t dataBuffer[DATA_BUFFER_LENGTH] = {0x0};
 static uint8_t sequenceNumber = 0;
 static bool bleRetry = false;
