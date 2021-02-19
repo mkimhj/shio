@@ -61,7 +61,7 @@ static ble_uuid_t m_adv_uuids[] =                                               
 static uint8_t ringBuffer[RING_BUFFER_SIZE] = {0};
 static uint16_t ringBufferHead = 0;
 static uint16_t ringBufferTail = 0;
-static int ringBufferBytesUsed = 0;
+static uint16_t ringBufferBytesUsed = 0;
 
 static void send(void);
 
@@ -517,7 +517,7 @@ void bleInit(void)
 static void send(void)
 {
   static bool sending = false;
-  int length = maxAttMtuBytes;
+  uint16_t length = maxAttMtuBytes;
 
   while(transmitDone && (sending == false)) {
     sending = true;

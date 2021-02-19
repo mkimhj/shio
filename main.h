@@ -33,7 +33,7 @@
 
 // Audio
 // fs: 50000 Hz
-#define PDM_BUFFER_LENGTH               (2048)
+#define PDM_BUFFER_LENGTH               (512)
 #define PDM_DECIMATION_FACTOR           (1)
 #define PDM_DECIMATION_BUFFER_LENGTH    (PDM_BUFFER_LENGTH / PDM_DECIMATION_FACTOR)
 
