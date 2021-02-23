@@ -53,6 +53,7 @@
 #include "nrf_soc.h"
 #include "nrf_sdh_soc.h"
 #include "nrf_sdm.h"
+#include "event.h"
 
 #define NRF_LOG_MODULE_NAME time_sync
 #define NRF_LOG_LEVEL 4
@@ -595,6 +596,7 @@ static inline bool sync_timer_offset_compensate(sync_pkt_t * p_pkt)
     mp_curr_adj_pkt            = p_pkt;
 
     ppi_sync_timer_adjust_enable();
+    eventQueuePush(EVENT_TIMESYNC_PACKET_RECEIVED);
 
     return true;
 }

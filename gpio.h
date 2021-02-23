@@ -24,6 +24,10 @@
 #define GPIO_3_PIN                       NRF_GPIO_PIN_MAP(0, 7)
 #define GPIO_4_PIN                       NRF_GPIO_PIN_MAP(0, 8)
 
+// LED
+#define DEBUG_LED_PIN                    NRF_GPIO_PIN_MAP(0,12)                 // not functional on revA design
+#define BLE_LED_PIN                      NRF_GPIO_PIN_MAP(0,13)                 // 0 to turn on, 1 to turn off
+
 // QSPI
 // These are located in sdk_config.h. They're placed here just for reference.
 // #define NRFX_QSPI_PIN_SCK                NRF_GPIO_PIN_MAP(0, 19)
@@ -43,8 +47,6 @@
 #define gpioOutput_t                         nrf_drv_gpiote_out_config_t
 
 #define gpioInput_t                          nrf_drv_gpiote_in_config_t
-// #define gpioOutputEnable(pin, config)          nrf_drv_gpiote_out_init(pin, config)
-// #define gpioOutputEnable(pin)                  nrf_drv_gpiote_out_init(pin, NRFX_GPIOTE_CONFIG_OUT_SIMPLE(0))
 #define gpioInputEnable(pin, config, handler)  nrf_drv_gpiote_in_init(pin, config, handler)
 #define gpioInterruptEnable(pin)             nrf_drv_gpiote_in_event_enable(pin, true)
 #define gpioInterruptDisable(pin)            nrf_drv_gpiote_in_event_disable(pin)
@@ -52,4 +54,5 @@
 
 void gpioInit(void);
 void gpioOutputEnable(gpioPin_t pin);
+void gpioDisable(gpioPin_t pin);
 void gpioWrite(gpioPin_t pin, uint8_t value);

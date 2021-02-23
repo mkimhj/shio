@@ -74,6 +74,7 @@ static uint8_t preamble[PREAMBLE_LENGTH] = {0x7F, 0xFF, 0x80, 0x00, 0x7F, 0xFF, 
 static uint8_t dataBuffer[DATA_BUFFER_LENGTH] = {0x0};
 static uint8_t sequenceNumber = 0;
 static bool bleRetry = false;
+static int32_t clockDifference = 0;
 
 accelGenericInterrupt_t accelInterrupt1 = {
   .pin = ACCEL_INT1,
@@ -105,9 +106,12 @@ void powerEnterSleepMode(void)
   gpioOutputEnable(MIC_EN_PIN);
   gpioWrite(MIC_EN_PIN, 0);
   gpioOutputEnable(ACCEL_EN_PIN);
-  gpioWrite(MIC_EN_PIN, 0);
+  gpioWrite(ACCEL_EN_PIN, 0);
   gpioOutputEnable(FLASH_EN_PIN);
-  gpioWrite(MIC_EN_PIN, 0);
+  gpioWrite(FLASH_EN_PIN, 0);
+
+  spiDeInit();
+  delayMs(1);
 
   // Prepare wakeup buttons.
   err_code = bsp_btn_ble_sleep_mode_prepare();
@@ -214,25 +218,29 @@ static void shioInit(void)
 {
   logInit();
   NRF_LOG_RAW_INFO("%08d [shio] booting...\n", systemTimeGetMs());
+
   timersInit();
+
   gpioInit();
-  gpioOutputEnable(GPIO_1_PIN);
-  gpioWrite(GPIO_1_PIN, 0); // booting
+
   eventQueueInit();
   buttons_leds_init();
 
   audioInit();
+
   spiInit();
   // accelInit();
   // accelGenericInterruptEnable(&accelInterrupt1);
+
   APP_ERROR_CHECK(nrf_drv_clock_init());
   powerInit();
+  gpioOutputEnable(FLASH_EN_PIN);
+  gpioWrite(FLASH_EN_PIN, 0);
 
   bleInit();
   timeSyncInit();
   bleAdvertisingStart();
 
-  gpioWrite(GPIO_1_PIN, 1); // finished booting
   NRF_LOG_RAW_INFO("%08d [shio] booted\n", systemTimeGetMs());
 }
 
@@ -252,7 +260,7 @@ static void processQueue(void)
       case EVENT_AUDIO_MIC_DATA_READY:
         memcpy(dataBuffer, preamble, sizeof(preamble) * sizeof(preamble[0]));
         dataBuffer[SEQUENCE_NUMBER_POSITION] = sequenceNumber++;
-        uint32_t timestamp = audioGetBufferReleasedTime();
+        uint32_t timestamp = audioGetBufferReleasedTime() + clockDifference;
         memcpy(dataBuffer + TIMESTAMP_POSITION, &timestamp, sizeof(timestamp));
         memcpy(dataBuffer + MIC_DATA_POSITION, audioGetMicData(), sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH);
 
@@ -298,6 +306,37 @@ static void processQueue(void)
 
       case EVENT_BLE_DISCONNECTED:
         NVIC_SystemReset();
+        break;
+
+      case EVENT_TIMESYNC_PACKET_RECEIVED:
+      {
+        static uint32_t lastSyncTicks = 0;
+        static uint32_t lastLocalTicks = 0;
+        uint32_t currentSyncTicks = ts_timestamp_get_ticks_u32(10);
+        uint32_t currentLocalTicks = systemTimeGetTicks();
+        int32_t wrappedSyncDelta = (currentSyncTicks - lastSyncTicks) % TIME_SYNC_TIMER_MAX_VAL;
+        int32_t wrappedLocalDelta = (currentLocalTicks - lastLocalTicks) % TIME_SYNC_TIMER_MAX_VAL;
+
+        int32_t compensation = 0;
+        if ((wrappedSyncDelta - wrappedLocalDelta) > (int32_t) (TIME_SYNC_TIMER_MAX_VAL/2)) {
+          // NRF_LOG_RAW_INFO("A %d %d\n", wrappedSyncDelta, wrappedLocalDelta);
+          compensation = ((wrappedSyncDelta - wrappedLocalDelta) - TIME_SYNC_TIMER_MAX_VAL);
+        } else if ((wrappedSyncDelta - wrappedLocalDelta) < (int32_t) (-1*(TIME_SYNC_TIMER_MAX_VAL/2))) {
+          // NRF_LOG_RAW_INFO("B %d %d\n", wrappedSyncDelta, wrappedLocalDelta);
+          compensation = ((wrappedSyncDelta - wrappedLocalDelta) + TIME_SYNC_TIMER_MAX_VAL);
+        } else {
+          compensation = (wrappedSyncDelta - wrappedLocalDelta);
+        }
+
+        clockDifference += compensation;
+
+        // NRF_LOG_RAW_INFO("cmp:%d cd:%08d\n", compensation, clockDifference);
+        lastSyncTicks = currentSyncTicks;
+        lastLocalTicks = currentLocalTicks;
+        break;
+      }
+
+      case EVENT_TIMERS_ONE_SECOND_ELAPSED:
         break;
 
       default:

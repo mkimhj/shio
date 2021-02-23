@@ -27,6 +27,11 @@ void gpioOutputEnable(gpioPin_t pin)
   nrf_drv_gpiote_out_init(pin, &outputConfig);
 }
 
+void gpioDisable(gpioPin_t pin)
+{
+  nrf_gpio_cfg_input(pin, NRF_GPIO_PIN_NOPULL);
+}
+
 void gpioWrite(gpioPin_t pin, uint8_t value)
 {
   if (value) {

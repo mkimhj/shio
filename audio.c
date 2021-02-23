@@ -51,7 +51,8 @@ static void pdmEventHandler(nrfx_pdm_evt_t *event)
 
   if (event->buffer_released) {
     CRITICAL_REGION_ENTER();
-    bufferReleasedTime = ts_timestamp_get_ticks_u32(NRF_PPI_CHANNEL10);
+    // bufferReleasedTime = ts_timestamp_get_ticks_u32(NRF_PPI_CHANNEL10);
+    bufferReleasedTime = systemTimeGetTicks();
     decimate(releasedPdmBuffer, event->buffer_released, PDM_DECIMATION_FACTOR);
     eventQueuePush(EVENT_AUDIO_MIC_DATA_READY);
     CRITICAL_REGION_EXIT();
