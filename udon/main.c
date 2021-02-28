@@ -54,7 +54,7 @@
 #include "nrf_drv_pwm.h"
 #include "nrf_drv_clock.h"
 static nrf_drv_pwm_t m_pwm0 = NRF_DRV_PWM_INSTANCE(0);
-nrf_pwm_values_individual_t seq_values[] = {{10, 0, 0, 0}};
+nrf_pwm_values_individual_t seq_values[] = {{100, 0, 0, 0}};
 nrf_pwm_sequence_t const seq =
 {
     .values.p_individual = seq_values,
@@ -81,9 +81,9 @@ void pwm_init(){
           NRF_DRV_PWM_PIN_NOT_USED,             // channel 3
       },
       .irq_priority = APP_IRQ_PRIORITY_LOWEST,
-      .base_clock   = NRF_PWM_CLK_1MHz,
+      .base_clock   = NRF_PWM_CLK_125kHz, //NRF_PWM_CLK_1MHz,
       .count_mode   = NRF_PWM_MODE_UP,
-      .top_value    = 20,
+      .top_value    = 12500, //10Hz
       .load_mode    = NRF_PWM_LOAD_INDIVIDUAL,
       .step_mode    = NRF_PWM_STEP_AUTO
   };
