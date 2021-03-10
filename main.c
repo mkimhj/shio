@@ -61,8 +61,17 @@
   #define SEQUENCE_NUMBER_LENGTH 1
   #define TIMESTAMP_POSITION (SEQUENCE_NUMBER_POSITION + SEQUENCE_NUMBER_LENGTH)
   #define TIMESTAMP_LENGTH 4
-  #define MIC_DATA_POSITION (TIMESTAMP_POSITION + TIMESTAMP_LENGTH)
-  #define DATA_BUFFER_LENGTH PREAMBLE_LENGTH + SEQUENCE_NUMBER_LENGTH + TIMESTAMP_LENGTH + 2*PDM_DECIMATION_BUFFER_LENGTH
+
+  #define ACCEL_MOTION_POSITION (TIMESTAMP_POSITION + TIMESTAMP_LENGTH)
+  #define ACCEL_MOTION_LENGTH 1
+
+  #define ACCEL_DATA_LENGTH 2
+  #define ACCEL_X_POSITION (ACCEL_MOTION_POSITION + ACCEL_MOTION_LENGTH)
+  #define ACCEL_Y_POSITION (ACCEL_X_POSITION + ACCEL_DATA_LENGTH)
+  #define ACCEL_Z_POSITION (ACCEL_Y_POSITION + ACCEL_DATA_LENGTH)
+
+  #define MIC_DATA_POSITION (ACCEL_Z_POSITION + ACCEL_DATA_LENGTH)
+  #define DATA_BUFFER_LENGTH PREAMBLE_LENGTH + SEQUENCE_NUMBER_LENGTH + TIMESTAMP_LENGTH + ACCEL_MOTION_LENGTH + (3*ACCEL_DATA_LENGTH) + (2*PDM_DECIMATION_BUFFER_LENGTH)
 #endif
 
 #ifdef MIC_TO_FLASH
@@ -75,6 +84,7 @@ static uint8_t dataBuffer[DATA_BUFFER_LENGTH] = {0x0};
 static uint8_t sequenceNumber = 0;
 static bool bleRetry = false;
 static int32_t clockDifference = 0;
+static bool motionActive = false;
 
 accelGenericInterrupt_t accelInterrupt1 = {
   .pin = ACCEL_INT1,
@@ -229,8 +239,8 @@ static void shioInit(void)
   audioInit();
 
   spiInit();
-  // accelInit();
-  // accelGenericInterruptEnable(&accelInterrupt1);
+  accelInit();
+  accelGenericInterruptEnable(&accelInterrupt1);
 
   APP_ERROR_CHECK(nrf_drv_clock_init());
   powerInit();
@@ -252,9 +262,11 @@ static void processQueue(void)
     switch(eventQueueFront()) {
       case EVENT_ACCEL_MOTION:
         NRF_LOG_RAW_INFO("%08d [accel] motion\n", systemTimeGetMs());
+        motionActive = true;
         break;
 
       case EVENT_ACCEL_STATIC:
+        motionActive = false;
         break;
 
       case EVENT_AUDIO_MIC_DATA_READY:
@@ -262,6 +274,20 @@ static void processQueue(void)
         dataBuffer[SEQUENCE_NUMBER_POSITION] = sequenceNumber++;
         uint32_t timestamp = audioGetBufferReleasedTime() + clockDifference;
         memcpy(dataBuffer + TIMESTAMP_POSITION, &timestamp, sizeof(timestamp));
+
+        // copy accel motion bit
+        dataBuffer[ACCEL_MOTION_POSITION] = motionActive ? 1 : 0;
+
+        // copy x, y, and z
+        dataBuffer[ACCEL_X_POSITION]     = ((uint8_t) ((accelGetX() >> 8) & 0xFF));
+        dataBuffer[ACCEL_X_POSITION + 1] = ((uint8_t) (accelGetX() & 0xFF));
+
+        dataBuffer[ACCEL_Y_POSITION]     = ((uint8_t) ((accelGetY() >> 8) & 0xFF));
+        dataBuffer[ACCEL_Y_POSITION + 1] = ((uint8_t) (accelGetY() & 0xFF));
+
+        dataBuffer[ACCEL_Z_POSITION]     = ((uint8_t) ((accelGetZ() >> 8) & 0xFF));
+        dataBuffer[ACCEL_Z_POSITION + 1] = ((uint8_t) (accelGetZ() & 0xFF));
+
         memcpy(dataBuffer + MIC_DATA_POSITION, audioGetMicData(), sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH);
 
         if (streamStarted) {
