@@ -240,6 +240,7 @@ static void shioInit(void)
 
   spiInit();
   accelInit();
+  gpioOutputEnable(DEBUG_LED_PIN);
   accelGenericInterruptEnable(&accelInterrupt1);
 
   APP_ERROR_CHECK(nrf_drv_clock_init());
@@ -262,10 +263,13 @@ static void processQueue(void)
     switch(eventQueueFront()) {
       case EVENT_ACCEL_MOTION:
         NRF_LOG_RAW_INFO("%08d [accel] motion\n", systemTimeGetMs());
+        gpioWrite(DEBUG_LED_PIN, 0);
         motionActive = true;
         break;
 
       case EVENT_ACCEL_STATIC:
+        NRF_LOG_RAW_INFO("%08d [accel] static\n", systemTimeGetMs());
+        gpioWrite(DEBUG_LED_PIN, 1);
         motionActive = false;
         break;
 
@@ -277,6 +281,7 @@ static void processQueue(void)
 
         // copy accel motion bit
         dataBuffer[ACCEL_MOTION_POSITION] = motionActive ? 1 : 0;
+        if (gpioRead(ACCEL_INT1_PIN) == 0) { motionActive = false; } // clear if low
 
         // copy x, y, and z
         dataBuffer[ACCEL_X_POSITION]     = ((uint8_t) ((accelGetX() >> 8) & 0xFF));
