@@ -255,6 +255,8 @@ static void shioInit(void)
   NRF_LOG_RAW_INFO("%08d [shio] booted\n", systemTimeGetMs());
 }
 
+uint32_t timeSinceMotionActive = 0;
+
 static void processQueue(void)
 {
   static bool streamStarted = false;
@@ -265,6 +267,7 @@ static void processQueue(void)
         NRF_LOG_RAW_INFO("%08d [accel] motion\n", systemTimeGetMs());
         gpioWrite(DEBUG_LED_PIN, 0);
         motionActive = true;
+        timeSinceMotionActive = systemTimeGetMs();
         break;
 
       case EVENT_ACCEL_STATIC:
@@ -281,7 +284,7 @@ static void processQueue(void)
 
         // copy accel motion bit
         dataBuffer[ACCEL_MOTION_POSITION] = motionActive ? 1 : 0;
-        if (gpioRead(ACCEL_INT1_PIN) == 0) { motionActive = false; } // clear if low
+        if (systemTimeGetMs() - timeSinceMotionActive > 1000) { motionActive = false; }
 
         // copy x, y, and z
         dataBuffer[ACCEL_X_POSITION]     = ((uint8_t) ((accelGetX() >> 8) & 0xFF));
