@@ -299,16 +299,18 @@ static void processQueue(void)
         memcpy(dataBuffer + MIC_DATA_POSITION, audioGetMicData(), sizeof(int16_t) * PDM_DECIMATION_BUFFER_LENGTH);
 
         if (streamStarted) {
-          if (bleBufferHasSpace(sizeof(dataBuffer) * sizeof(dataBuffer[0])) && !bleRetry) {
+          if (bleRetry) {
+            NRF_LOG_RAW_INFO("%08d [ble] seqN:%d dropped packet\n", systemTimeGetMs(), sequenceNumber);
+          }
+
+          if (bleBufferHasSpace(sizeof(dataBuffer) * sizeof(dataBuffer[0]))) {
             bleSendData((uint8_t *) dataBuffer, sizeof(dataBuffer) * sizeof(dataBuffer[0]));
+            bleRetry = false;
           } else {
-            if (!bleRetry) {
-              bleRetry = true;
-            } else {
-              NRF_LOG_RAW_INFO("%08d [ble] seqN:%d dropped packet\n", systemTimeGetMs(), sequenceNumber);
-            }
+            bleRetry = true;
           }
         }
+
         break;
 
       case EVENT_BLE_DATA_STREAM_START:
