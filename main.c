@@ -333,6 +333,8 @@ static void processQueue(void)
         if (bleRetry && bleBufferHasSpace(sizeof(dataBuffer) * sizeof(dataBuffer[0]))) {
           bleRetry = false;
           bleSendData((uint8_t *) dataBuffer, sizeof(dataBuffer) * sizeof(dataBuffer[0]));
+        } else {
+          send();
         }
         break;
 

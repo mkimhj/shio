@@ -63,8 +63,6 @@ static uint16_t ringBufferHead = 0;
 static uint16_t ringBufferTail = 0;
 static uint16_t ringBufferBytesUsed = 0;
 
-static void send(void);
-
 char const * phy_str(ble_gap_phys_t phys)
 {
   static char const * str[] =
@@ -386,7 +384,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 
     case BLE_GATTS_EVT_HVN_TX_COMPLETE:
       transmitDone = true;
-      send(); // attempt to keep sending remaining bytes in ringBuffer
+      // send(); // attempt to keep sending remaining bytes in ringBuffer
       eventQueuePush(EVENT_BLE_SEND_DATA_DONE); // attempt to requeue mic data if ringBuffer was previously full
       NRF_LOG_DEBUG("Handle value notification");
       break;
@@ -516,7 +514,7 @@ void bleInit(void)
   NRF_LOG_RAW_INFO("%02X:%02X:%02X:%02X:%02X:%02X\n", address[0], address[1], address[2], address[3], address[4], address[5]);
 }
 
-static void send(void)
+void send(void)
 {
   static bool sending = false;
   uint16_t length = maxAttMtuBytes;

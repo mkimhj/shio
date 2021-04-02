@@ -9,3 +9,4 @@ void bleInit(void);
 void bleSendData(uint8_t * data, int length);
 bool bleCanTransmit(void);
 bool bleBufferHasSpace(uint16_t length);
+void send(void);
