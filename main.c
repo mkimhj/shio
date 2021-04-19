@@ -83,7 +83,7 @@ static uint8_t preamble[PREAMBLE_LENGTH] = {0x7F, 0xFF, 0x80, 0x00, 0x7F, 0xFF, 
 static uint8_t dataBuffer[DATA_BUFFER_LENGTH] = {0x0};
 static uint8_t sequenceNumber = 0;
 static bool bleRetry = false;
-static int32_t clockDifference = 0;
+static volatile int32_t clockDifference = 0;
 static bool motionActive = false;
 
 accelGenericInterrupt_t accelInterrupt1 = {
@@ -352,7 +352,7 @@ static void processQueue(void)
         static uint32_t lastLocalTicks = 0;
         uint32_t currentSyncTicks = ts_timestamp_get_ticks_u32(10);
         uint32_t currentLocalTicks = systemTimeGetTicks();
-        int32_t wrappedSyncDelta = (currentSyncTicks - lastSyncTicks) % TIME_SYNC_TIMER_MAX_VAL;
+        int32_t wrappedSyncDelta =(int32_t)(((int64_t)currentSyncTicks - (int64_t)lastSyncTicks) % TIME_SYNC_TIMER_MAX_VAL);
         int32_t wrappedLocalDelta = (currentLocalTicks - lastLocalTicks) % TIME_SYNC_TIMER_MAX_VAL;
 
         int32_t compensation = 0;
@@ -367,7 +367,7 @@ static void processQueue(void)
         }
 
         clockDifference += compensation;
-
+        //NRF_LOG_RAW_INFO("clock: %d %d %d %d %d\n", compensation, currentSyncTicks, currentLocalTicks, lastSyncTicks, lastLocalTicks);
         // NRF_LOG_RAW_INFO("cmp:%d cd:%08d\n", compensation, clockDifference);
         lastSyncTicks = currentSyncTicks;
         lastLocalTicks = currentLocalTicks;
