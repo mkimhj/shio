@@ -94,8 +94,8 @@ accelGenericInterrupt_t accelInterrupt1 = {
   .zEnable = true,
   .activity = true,
   .combSelectIsAnd = false,
-  .threshold = 0x3,
-  .duration = 0x7,
+  .threshold = 0x2,
+  .duration = 0x4,
 };
 
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
