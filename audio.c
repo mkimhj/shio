@@ -116,8 +116,6 @@ static void pdmEventHandler(nrfx_pdm_evt_t *event)
       }
     }
 
-
-
     pdmBufferIndex = (pdmBufferIndex == 0) ? 1 : 0;
     errorStatus = nrfx_pdm_buffer_set(pdmBuffer[pdmBufferIndex], PDM_BUFFER_LENGTH + bufferTweakAmount);
     ASSERT(errorStatus == NRFX_SUCCESS);
