@@ -809,7 +809,6 @@ static void cmd_char_read(nrf_cli_t const * p_cli, size_t argc, char ** argv)
  */
 static void cmd_char_write(nrf_cli_t const * p_cli, size_t argc, char ** argv)
 {
-
     if ((argc == 1) || nrf_cli_help_requested(p_cli))
     {
         nrf_cli_help_print(p_cli, NULL, 0);
@@ -870,7 +869,9 @@ static void cmd_char_write(nrf_cli_t const * p_cli, size_t argc, char ** argv)
 
     for (uint8_t i = 0; i < data_len; i++)
     {
-        data_buf[i] = atoi(argv[i + 4]);
+        // data_buf[i] = atoi(argv[i + 4]);
+        // data_buf[i] = 0xB1;
+        data_buf[i] = (int)strtol(argv[i+4], NULL, 16);
     }
 
     // Write data to characteristic.
